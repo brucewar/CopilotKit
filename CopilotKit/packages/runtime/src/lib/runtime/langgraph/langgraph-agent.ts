@@ -42,8 +42,6 @@ export class LangGraphAgent extends AGUILangGraphAgent {
   }
 
   dispatchEvent(event: ProcessedEvents) {
-    let shouldExit = false
-
     if (event.type === EventType.CUSTOM) {
       // const event = processedEvent as unknown as CustomEvent;
       const customEvent = event as unknown as CustomEvent;
@@ -102,24 +100,13 @@ export class LangGraphAgent extends AGUILangGraphAgent {
       }
 
       if (customEvent.name === CustomEventNames.CopilotKitExit) {
-        shouldExit = true;
-        this.subscriber.next(event);
+        this.subscriber.next({
+          type: EventType.CUSTOM,
+          name: "Handoff",
+          value: true,
+        })
         return true
       }
-    }
-
-    if (event.type === EventType.STATE_SNAPSHOT && shouldExit) {
-      this.subscriber.next({
-        ...event,
-        snapshot: event.snapshot
-      })
-      this.subscriber.next({
-        type: EventType.CUSTOM,
-        name: "CopilotKitExit",
-        value: shouldExit,
-      })
-      shouldExit = false
-      return true
     }
 
     // Intercept all text message and tool call events and check if should disable
