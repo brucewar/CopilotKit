@@ -233,11 +233,12 @@ If you're seeing this error, it means the LangGraph platform client cannot conne
 
         new CopilotRuntime({
           agents: {
-            'agent-name', new LangGraphAgent({({
+              'agent-name', new LangGraphAgent({
               deploymentUrl: "https://your-fastapi-endpoint:port",
-              langsmithApiKey: <langsmith API key>
+              langsmithApiKey: '<langsmith API key>',
               graphId: 'langgraph.json graph id', // Your previous graphId definition
-            },
+            }),
+          },
         });
         ```
 
