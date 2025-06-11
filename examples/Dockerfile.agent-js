@@ -11,30 +11,38 @@ RUN corepack prepare pnpm@9.15.0 --activate
 
 RUN apt-get update && apt-get install curl -y
 
-# First install via pnpx
+# Verify Node.js version meets requirements
+RUN node --version && npm --version
+
+# First install via pnpx to ensure CLI is available
 RUN pnpx @langchain/langgraph-cli --help
 
 ARG APP_DIR
 
-# WORKDIR /tmp
-
+# Create and ensure .env file exists
 RUN touch .env
 
-# Copy only poetry files first
+# Copy only package files first for better layer caching
 COPY ${APP_DIR}/package.json ${APP_DIR}/pnpm-lock.yaml ./
+
+# Clean install to avoid dependency conflicts
 RUN pnpm i --frozen-lockfile
 
-# Copy SDK and install dependencies in a single layer
+# Copy all source files
 COPY ${APP_DIR}/ ./
 
-# Explicitly install the missing dependency
-RUN pnpm add @langchain/langgraph-checkpoint
+# Explicitly install missing dependencies that may be needed
+RUN pnpm add @langchain/langgraph-checkpoint || true
 
-RUN mkdir /tmp/.langgraph_api
+# Create langgraph API directories with proper permissions
+RUN mkdir -p /tmp/.langgraph_api /tmp/storage/checkpoints /tmp/storage/store
 
+# Set environment variables for LangGraph
 ENV LANGGRAPH_API_DIR="/tmp/.langgraph_api"
+ENV LANGGRAPH_STORAGE_DIR="/tmp/storage"
 
-RUN ls -la
+# Verify installation
+RUN ls -la && pnpm list --depth=0
 
-# CMD ["/bin/sh", "-c", "ls -la"]
+# Use dev command which is more suitable for containers
 CMD ["/bin/sh", "-c", "pnpx @langchain/langgraph-cli dev --config=langgraph.json --no-browser --port 8000 --host 0.0.0.0"]
