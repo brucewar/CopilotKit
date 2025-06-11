@@ -45,6 +45,10 @@ Middleware to be used by the runtime.
     properties: any;
   }) => void | Promise<void>;
   ```
+ 
+  ```ts
+  onError: (error: CopilotRuntimeError) => 'handled' | 'default' | Promise<'handled' | 'default'>;
+  ```
 </PropertyReference>
 
 <PropertyReference name="actions" type="ActionsConfiguration<T>"  > 

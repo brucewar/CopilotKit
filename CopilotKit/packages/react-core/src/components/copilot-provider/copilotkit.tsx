@@ -49,6 +49,11 @@ import {
   LangGraphInterruptAction,
   LangGraphInterruptActionSetterArgs,
 } from "../../types/interrupt-action";
+import {
+  CopilotClientError,
+  categorizeCopilotError,
+  ErrorHandlerResult,
+} from "../../types/error-handler";
 
 export function CopilotKit({ children, ...props }: CopilotKitProps) {
   const showDevConsole = props.showDevConsole === undefined ? "auto" : props.showDevConsole;
@@ -380,6 +385,136 @@ export function CopilotKitInternal(cpkProps: CopilotKitProps) {
     setLangGraphInterruptAction(null);
   }, []);
 
+  // Error handling implementation
+  const handleError = useCallback(
+    async (
+      error: unknown,
+      context: Partial<{ componentName: string; hookName: string; actionName: string }> = {},
+    ): Promise<void> => {
+      // Categorize the error with client-side context
+      const categorizedError = categorizeCopilotError(error, {
+        threadId: internalThreadId,
+        runId: runId || undefined,
+      });
+
+      // Enrich error with additional context
+      if (categorizedError.category === "component") {
+        if (context.componentName) categorizedError.componentName = context.componentName;
+        if (context.hookName) categorizedError.hookName = context.hookName;
+      }
+
+      // Call user's error handler if provided
+      if (props.onError) {
+        try {
+          const result = await props.onError(categorizedError);
+          if (result === "handled") {
+            // User handled the error, don't proceed with default handling
+            return;
+          }
+        } catch (handlerError) {
+          console.error("Error in CopilotKit error handler:", handlerError);
+          // Continue with default error handling
+        }
+      }
+
+      // Default error handling based on category
+      switch (categorizedError.category) {
+        case "agent":
+          console.error(`[CopilotKit Agent Error] ${categorizedError.message}`, {
+            type: categorizedError.type,
+            agentName: categorizedError.agentName,
+            threadId: categorizedError.threadId,
+            timestamp: new Date(categorizedError.timestamp).toISOString(),
+          });
+          break;
+
+        case "network":
+          console.error(`[CopilotKit Network Error] ${categorizedError.message}`, {
+            type: categorizedError.type,
+            endpoint: categorizedError.endpoint,
+            statusCode: categorizedError.statusCode,
+            threadId: categorizedError.threadId,
+          });
+          break;
+
+        case "component":
+          console.error(`[CopilotKit Component Error] ${categorizedError.message}`, {
+            type: categorizedError.type,
+            componentName: categorizedError.componentName,
+            hookName: categorizedError.hookName,
+            threadId: categorizedError.threadId,
+          });
+          break;
+
+        case "runtime":
+          console.error(`[CopilotKit Runtime Error] ${categorizedError.message}`, {
+            type: categorizedError.type,
+            threadId: categorizedError.threadId,
+          });
+          break;
+
+        case "action_execution":
+          console.error(`[CopilotKit Action Error] ${categorizedError.message}`, {
+            type: categorizedError.type,
+            actionName: categorizedError.actionName,
+            threadId: categorizedError.threadId,
+          });
+          break;
+
+        case "llm_provider":
+          console.error(`[CopilotKit LLM Provider Error] ${categorizedError.message}`, {
+            type: categorizedError.type,
+            provider: categorizedError.provider,
+            model: categorizedError.model,
+            threadId: categorizedError.threadId,
+          });
+          break;
+
+        case "security":
+          console.error(`[CopilotKit Security Error] ${categorizedError.message}`, {
+            type: categorizedError.type,
+            threadId: categorizedError.threadId,
+          });
+          break;
+
+        case "data_processing":
+          console.error(`[CopilotKit Data Processing Error] ${categorizedError.message}`, {
+            type: categorizedError.type,
+            threadId: categorizedError.threadId,
+          });
+          break;
+
+        case "resource":
+          console.error(`[CopilotKit Resource Error] ${categorizedError.message}`, {
+            type: categorizedError.type,
+            resourceType: categorizedError.resourceType,
+            threadId: categorizedError.threadId,
+          });
+          break;
+
+        case "integration":
+          console.error(`[CopilotKit Integration Error] ${categorizedError.message}`, {
+            type: categorizedError.type,
+            serviceName: categorizedError.serviceName,
+            threadId: categorizedError.threadId,
+          });
+          break;
+
+        case "concurrency":
+          console.error(`[CopilotKit Concurrency Error] ${categorizedError.message}`, {
+            type: categorizedError.type,
+            resourceId: categorizedError.resourceId,
+            threadId: categorizedError.threadId,
+          });
+          break;
+
+        default:
+          console.error("[CopilotKit Error]", categorizedError);
+      }
+    },
+    [props.onError, internalThreadId, runId],
+  );
+
   return (
     <CopilotContext.Provider
       value={{
@@ -432,6 +567,8 @@ export function CopilotKitInternal(cpkProps: CopilotKitProps) {
         langGraphInterruptAction,
         setLangGraphInterruptAction,
         removeLangGraphInterruptAction,
+        onError: props.onError,
+        handleError,
       }}
     >
       <CopilotMessages>{children}</CopilotMessages>
